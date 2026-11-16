@@ -1,0 +1,50 @@
+<template id="tpl-order">
+  <div class="order-container">
+    <h2>Formulir Pemesanan Bahan Ajar UT</h2>
+
+    <form @submit.prevent="submitOrder">
+      <div style="margin-bottom: 15px">
+        <label>Pilih Paket Bahan Ajar:</label>
+        <select
+          v-model="selectedPaket"
+          @change="onPaketSelect"
+          style="width: 100%; padding: 8px"
+        >
+          <option value="">-- Pilih Paket --</option>
+          <option v-for="pkt in paket" :value="pkt.kode">
+            {{ pkt.nama }} - {{ formatRupiah(pkt.harga) }}
+          </option>
+        </select>
+      </div>
+
+      <div style="margin-bottom: 15px">
+        <label>Pilih Metode Pengiriman (Ekspedisi):</label>
+        <select v-model="selectedEkspedisi" style="width: 100%; padding: 8px">
+          <option value="">-- Pilih Ekspedisi --</option>
+          <option v-for="exp in ekspedisiList" :value="exp.kode">
+            {{ exp.nama }}
+          </option>
+        </select>
+      </div>
+
+      <div style="margin-bottom: 15px">
+        <label>Nama Pemesan:</label>
+        <input
+          type="text"
+          v-model="namaPemesan"
+          placeholder="Masukkan nama Anda"
+          style="width: 100%; padding: 8px"
+        />
+      </div>
+
+      <button type="submit" class="btn-primary">Kirim Pesanan</button>
+    </form>
+
+    <p
+      v-if="pesanOrder"
+      style="margin-top: 15px; font-weight: bold; color: green"
+    >
+      {{ pesanOrder }}
+    </p>
+  </div>
+</template>

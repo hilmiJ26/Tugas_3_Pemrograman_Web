@@ -1,0 +1,262 @@
+<template id="tpl-stock">
+  <div class="stok-container">
+    <h2>Manajemen Stok Bahan Ajar UT</h2>
+
+    <!-- Bagian Filter dan Sorting -->
+    <div
+      class="filter-section"
+      style="margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap"
+    >
+      <div>
+        <label>Filter UT-Daerah:</label>
+        <select v-model="selectedUpbjj" @change="onUpbjjChange">
+          <option value="">-- Semua UT-Daerah --</option>
+          <option v-for="upbjj in upbjjList" :value="upbjj">{{ upbjj }}</option>
+        </select>
+      </div>
+
+      <!-- Dependent Options: Kategori baru muncul jika UT-Daerah sudah dipilih -->
+      <div v-if="selectedUpbjj">
+        <label>Filter Kategori:</label>
+        <select v-model="selectedKategori">
+          <option value="">-- Semua Kategori --</option>
+          <option v-for="kat in kategoriList" :value="kat">{{ kat }}</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Filter Re-order:</label>
+        <select v-model="filterReorderType">
+          <option value="">-- Semua Status --</option>
+          <option value="menipis">Stok Menipis (< Safety)</option>
+          <option value="kosong">Stok Kosong (= 0)</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Urutkan (Sort):</label>
+        <select v-model="sortBy">
+          <option value="">-- Normal --</option>
+          <option value="judul">Judul Mata Kuliah (A-Z)</option>
+          <option value="qty">Jumlah Stok (Qty)</option>
+          <option value="harga">Harga</option>
+        </select>
+      </div>
+
+      <div>
+        <button @click="resetFilter" class="btn-secondary">Reset Filter</button>
+      </div>
+    </div>
+
+    <!-- Tabel Daftar Stok Bahan Ajar -->
+    <table
+      class="stok-table"
+      border="1"
+      cellpadding="8"
+      cellspacing="0"
+      style="width: 100%; border-collapse: collapse"
+    >
+      <thead>
+        <tr>
+          <th>Kode / Judul</th>
+          <th>Kategori</th>
+          <th>UT-Daerah</th>
+          <th>Lokasi Rak</th>
+          <th>Harga</th>
+          <th>Jumlah Stok</th>
+          <th>Safety Stock</th>
+          <th>Status (Hover Catatan)</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(item, index) in filteredStok" :key="item.kode">
+          <td>
+            <strong>{{ item.kode }}</strong><br />
+            {{ item.judul }}
+          </td>
+          <td>{{ item.kategori }}</td>
+          <td>{{ item.upbjj }}</td>
+          <td>{{ item.lokasiRak }}</td>
+          <td>{{ formatRupiah(item.harga) }}</td>
+          <td>
+            <!-- Mode Edit Qty atau Tampilan Biasa -->
+            <span v-if="editIndex !== index">{{ item.qty }} buah</span>
+            <input
+              v-else
+              type="number"
+              v-model.number="editForm.qty"
+              @keyup.enter="saveEdit(index)"
+              min="0"
+              style="width: 70px"
+            />
+          </td>
+          <td>{{ item.safety }} buah</td>
+
+          <!-- Kolom Status dengan Tooltip Catatan saat Hover -->
+          <td :title="getCatatanPlain(item.catatanHTML)" style="cursor: help">
+            <status-badge :qty="item.qty" :safety="item.safety"></status-badge>
+            <div
+              style="font-size: 11px; color: #666; margin-top: 4px"
+              v-html="item.catatanHTML"
+            ></div>
+          </td>
+
+          <td>
+            <button
+              v-if="editIndex !== index"
+              @click="startEdit(index, item)"
+              class="btn-sm"
+            >
+              Edit
+            </button>
+            <button
+              v-if="editIndex === index"
+              @click="saveEdit(index)"
+              class="btn-sm btn-success"
+              @keyup.enter="saveEdit(index)"
+            >
+              Simpan
+            </button>
+            <button
+              v-if="editIndex === index"
+              @click="cancelEdit"
+              class="btn-sm btn-secondary"
+            >
+              Batal
+            </button>
+            <button @click="confirmDelete(item)" class="btn-sm btn-danger">
+              Hapus
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Formulir Tambah Data Bahan Ajar Baru -->
+    <section
+      class="stok-form-section"
+      style="
+        margin-top: 30px;
+        padding: 15px;
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+      "
+    >
+      <h3>Tambah Data Bahan Ajar Baru</h3>
+      <form @submit.prevent="addBahanAjar">
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+          "
+        >
+          <div>
+            <label>Kode MK:</label>
+            <input
+              type="text"
+              v-model="formNew.kode"
+              @keyup.enter="addBahanAjar"
+              placeholder="Contoh: ADPU4334"
+            />
+            <small class="error-text" v-if="errors.kode" style="color: red"
+              >{{ errors.kode }}</small
+            >
+          </div>
+          <div>
+            <label>Judul MK:</label>
+            <input
+              type="text"
+              v-model="formNew.judul"
+              @keyup.enter="addBahanAjar"
+              placeholder="Contoh: Kepemimpinan"
+            />
+            <small class="error-text" v-if="errors.judul" style="color: red"
+              >{{ errors.judul }}</small
+            >
+          </div>
+          <div>
+            <label>Kategori:</label>
+            <select v-model="formNew.kategori">
+              <option value="">Pilih Kategori</option>
+              <option v-for="kat in kategoriList" :value="kat">
+                {{ kat }}
+              </option>
+            </select>
+            <small class="error-text" v-if="errors.kategori" style="color: red"
+              >{{ errors.kategori }}</small
+            >
+          </div>
+          <div>
+            <label>UT-Daerah:</label>
+            <select v-model="formNew.upbjj">
+              <option value="">Pilih UT-Daerah</option>
+              <option v-for="upbjj in upbjjList" :value="upbjj">
+                {{ upbjj }}
+              </option>
+            </select>
+            <small class="error-text" v-if="errors.upbjj" style="color: red"
+              >{{ errors.upbjj }}</small
+            >
+          </div>
+          <div>
+            <label>Lokasi Rak:</label>
+            <input
+              type="text"
+              v-model="formNew.lokasiRak"
+              @keyup.enter="addBahanAjar"
+              placeholder="Contoh: R1-A1"
+            />
+          </div>
+          <div>
+            <label>Harga (Rp):</label>
+            <input
+              type="number"
+              v-model.number="formNew.harga"
+              @keyup.enter="addBahanAjar"
+              min="0"
+            />
+          </div>
+          <div>
+            <label>Jumlah Stok (Qty):</label>
+            <input
+              type="number"
+              v-model.number="formNew.qty"
+              @keyup.enter="addBahanAjar"
+              min="0"
+            />
+          </div>
+          <div>
+            <label>Safety Stock:</label>
+            <input
+              type="number"
+              v-model.number="formNew.safety"
+              @keyup.enter="addBahanAjar"
+              min="0"
+            />
+          </div>
+          <div>
+            <label>Catatan (HTML):</label>
+            <input
+              type="text"
+              v-model="formNew.catatanHTML"
+              @keyup.enter="addBahanAjar"
+              placeholder="Contoh: <em>Edisi Baru</em>"
+            />
+          </div>
+        </div>
+        <button type="submit" style="margin-top: 15px" class="btn-primary">
+          Tambah Bahan Ajar (Enter)
+        </button>
+      </form>
+      <p
+        v-if="pesanFeedback"
+        :class="pesanClass"
+        style="margin-top: 10px; font-weight: bold"
+      >
+        {{ pesanFeedback }}
+      </p>
+    </section>
+  </div>
+</template>

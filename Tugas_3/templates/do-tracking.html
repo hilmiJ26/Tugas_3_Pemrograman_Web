@@ -1,0 +1,189 @@
+<template id="tpl-tracking">
+  <div class="tracking-container">
+    <h2>Tracking Delivery Order (DO) Bahan Ajar</h2>
+
+    <!-- Bagian Pencarian DO / NIM -->
+    <div
+      class="search-section"
+      style="
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f1f5f9;
+        border-radius: 6px;
+      "
+    >
+      <label>Cari Berdasarkan Nomor DO atau NIM:</label>
+      <div style="display: flex; gap: 10px; margin-top: 5px">
+        <input
+          type="text"
+          v-model="searchKeyword"
+          @keyup.enter="handleSearch"
+          @keyup.esc="resetSearch"
+          placeholder="Ketik No. DO atau NIM, lalu tekan Enter (Esc untuk reset)"
+          style="flex: 1; padding: 8px"
+        />
+        <button @click="handleSearch" class="btn-primary">Cari (Enter)</button>
+        <button @click="resetSearch" class="btn-secondary">Reset (Esc)</button>
+      </div>
+    </div>
+
+    <!-- Hasil Pencarian / Detail DO -->
+    <div
+      v-if="searchResult"
+      class="result-card"
+      style="
+        border: 1px solid #cbd5e1;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+      "
+    >
+      <h3>Hasil Pelacakan: {{ currentFoundDoNumber }}</h3>
+      <p><strong>NIM:</strong> {{ searchResult.nim }}</p>
+      <p><strong>Nama Mahasiswa:</strong> {{ searchResult.nama }}</p>
+      <p>
+        <strong>Status Terkini:</strong>
+        <span style="color: #2563eb; font-weight: bold"
+          >{{ searchResult.status }}</span
+        >
+      </p>
+      <p><strong>Ekspedisi:</strong> {{ searchResult.ekspedisi }}</p>
+      <p>
+        <strong>Tanggal Kirim:</strong> {{
+        formatDateLocal(searchResult.tanggalKirim) }}
+      </p>
+      <p><strong>Paket Dipesan:</strong> {{ searchResult.paket }}</p>
+      <p>
+        <strong>Total Harga:</strong> {{ formatRupiah(searchResult.total) }}
+      </p>
+
+      <h4 style="margin-top: 15px">Riwayat Perjalanan (Progress):</h4>
+      <ul>
+        <li v-for="(log, idx) in searchResult.perjalanan" :key="idx">
+          [{{ log.waktu }}] - {{ log.keterangan }}
+        </li>
+      </ul>
+
+      <!-- Form Tambah Riwayat Perjalanan Baru -->
+      <div style="margin-top: 15px; display: flex; gap: 10px">
+        <input
+          type="text"
+          v-model="newProgressText"
+          placeholder="Keterangan progress baru..."
+          style="flex: 1; padding: 6px"
+        />
+        <button
+          @click="addProgress(currentFoundDoNumber)"
+          class="btn-sm btn-success"
+        >
+          Tambah Progress
+        </button>
+      </div>
+    </div>
+    <p v-else-if="searchedAttempted" style="color: red; font-weight: bold">
+      Data DO atau NIM tidak ditemukan.
+    </p>
+
+    <!-- Formulir Tambah Delivery Order Baru -->
+    <section
+      class="form-do-section"
+      style="
+        padding: 20px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+      "
+    >
+      <h3>Tambah Delivery Order (DO) Baru</h3>
+      <form @submit.prevent="addNewDO">
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+          "
+        >
+          <div>
+            <label>Nomor DO (Auto-Generate):</label>
+            <input
+              type="text"
+              :value="nextDoNumber"
+              disabled
+              style="background: #e2e8f0; width: 100%; padding: 8px"
+            />
+          </div>
+          <div>
+            <label>NIM Mahasiswa:</label>
+            <input
+              type="text"
+              v-model="formDO.nim"
+              placeholder="Masukkan NIM"
+              style="width: 100%; padding: 8px"
+            />
+          </div>
+          <div>
+            <label>Nama Mahasiswa:</label>
+            <input
+              type="text"
+              v-model="formDO.nama"
+              placeholder="Masukkan Nama Lengkap"
+              style="width: 100%; padding: 8px"
+            />
+          </div>
+          <div>
+            <label>Ekspedisi:</label>
+            <select
+              v-model="formDO.ekspedisi"
+              style="width: 100%; padding: 8px"
+            >
+              <option value="">Pilih Ekspedisi</option>
+              <option v-for="exp in pengirimanList" :value="exp.nama">
+                {{ exp.nama }}
+              </option>
+            </select>
+          </div>
+          <div style="grid-column: span 2">
+            <label>Pilih Paket Bahan Ajar:</label>
+            <select
+              v-model="formDO.paketKode"
+              @change="onPaketChange"
+              style="width: 100%; padding: 8px"
+            >
+              <option value="">-- Pilih Paket --</option>
+              <option v-for="pkt in paketList" :value="pkt.kode">
+                {{ pkt.kode }} - {{ pkt.nama }} ({{ formatRupiah(pkt.harga) }})
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Detail Paket Dinamis -->
+        <div
+          v-if="selectedPaketDetail"
+          style="
+            background: #f8fafc;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3b82f6;
+          "
+        >
+          <strong>Detail Isi Paket:</strong>
+          <ul>
+            <li v-for="isi in selectedPaketDetail.isi" :key="isi">{{ isi }}</li>
+          </ul>
+        </div>
+
+        <button type="submit" class="btn-primary">
+          Simpan Delivery Order Baru
+        </button>
+      </form>
+      <p
+        v-if="pesanDO"
+        style="margin-top: 10px; font-weight: bold; color: green"
+      >
+        {{ pesanDO }}
+      </p>
+    </section>
+  </div>
+</template>
